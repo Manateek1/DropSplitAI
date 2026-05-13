@@ -37,6 +37,8 @@ export const demoDashboardData: DashboardData = {
     targetEvents: ["100 free", "50 free", "100 back"],
     currentTrainingLevel: "High school in-season with one optional Saturday practice",
     sorenessNotes: "Gets tight shoulders after two hard sprint days in a row.",
+    prefersSimpleExplanations: true,
+    autoEasyOnSoreness: true,
     onboardingCompleted: true,
   },
   bestTimes: [

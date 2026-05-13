@@ -53,6 +53,8 @@ export interface SwimmerProfile {
   targetEvents: SwimEvent[];
   currentTrainingLevel?: string;
   sorenessNotes?: string;
+  prefersSimpleExplanations: boolean;
+  autoEasyOnSoreness: boolean;
   onboardingCompleted: boolean;
 }
 
@@ -84,6 +86,7 @@ export interface UploadedFileRecord {
   fileName: string;
   storagePath?: string | null;
   publicUrl?: string | null;
+  signedUrl?: string | null;
   mimeType: string;
   sizeBytes: number;
   kind: UploadKind;

@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 
-import { env, isSupabaseConfigured } from "@/lib/env";
+import { env, isDemoMode, isSupabaseConfigured } from "@/lib/env";
+import { logServerError, trackEvent } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { AuthActionResult } from "@/types/domain";
 import { forgotPasswordSchema, loginSchema, resetPasswordSchema, signupSchema, type ForgotPasswordInput, type LoginInput, type ResetPasswordInput, type SignupInput } from "@/lib/validation";
@@ -14,6 +15,9 @@ export async function loginAction(values: LoginInput): Promise<AuthActionResult>
   }
 
   if (!isSupabaseConfigured) {
+    if (!isDemoMode) {
+      return { ok: false, message: "Supabase must be configured before users can log in." };
+    }
     return { ok: true, redirectTo: "/dashboard", message: "Demo mode is active." };
   }
 
@@ -34,37 +38,47 @@ export async function signupAction(values: SignupInput): Promise<AuthActionResul
   }
 
   if (!isSupabaseConfigured) {
+    if (!isDemoMode) {
+      return { ok: false, message: "Supabase must be configured before users can sign up." };
+    }
     return { ok: true, redirectTo: "/onboarding", message: "Demo mode is active." };
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    options: {
-      emailRedirectTo: `${env.appUrl}/auth/callback`,
-      data: { first_name: parsed.data.firstName },
-    },
-  });
-
-  if (error) {
-    return { ok: false, message: error.message };
-  }
-
-  if (data.user) {
-    await supabase.from("profiles").upsert({
-      id: data.user.id,
+  try {
+    const supabase = await createServerSupabaseClient();
+    await trackEvent("signup_started", null, { emailDomain: parsed.data.email.split("@")[1] ?? "unknown" });
+    const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
-      first_name: parsed.data.firstName,
-      full_name: parsed.data.firstName,
+      password: parsed.data.password,
+      options: {
+        emailRedirectTo: `${env.appUrl}/auth/callback`,
+        data: { first_name: parsed.data.firstName },
+      },
     });
-  }
 
-  return {
-    ok: true,
-    redirectTo: data.session ? "/onboarding" : "/login",
-    message: data.session ? "Account created." : "Check your email to confirm your account.",
-  };
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    if (data.user) {
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        email: parsed.data.email,
+        first_name: parsed.data.firstName,
+        full_name: parsed.data.firstName,
+      });
+      await trackEvent("signup_completed", data.user.id);
+    }
+
+    return {
+      ok: true,
+      redirectTo: data.session ? "/onboarding" : "/login",
+      message: data.session ? "Account created." : "Check your email to confirm your account.",
+    };
+  } catch (error) {
+    logServerError("signupAction", error);
+    return { ok: false, message: "Unable to create that account. Please try again." };
+  }
 }
 
 export async function forgotPasswordAction(values: ForgotPasswordInput): Promise<AuthActionResult> {
@@ -74,6 +88,9 @@ export async function forgotPasswordAction(values: ForgotPasswordInput): Promise
   }
 
   if (!isSupabaseConfigured) {
+    if (!isDemoMode) {
+      return { ok: false, message: "Supabase must be configured to send reset emails." };
+    }
     return { ok: true, message: "Demo mode is active. Configure Supabase to send reset emails." };
   }
 
@@ -96,6 +113,9 @@ export async function updatePasswordAction(values: ResetPasswordInput): Promise<
   }
 
   if (!isSupabaseConfigured) {
+    if (!isDemoMode) {
+      return { ok: false, message: "Supabase must be configured to update passwords." };
+    }
     return { ok: true, redirectTo: "/login", message: "Demo mode is active." };
   }
 

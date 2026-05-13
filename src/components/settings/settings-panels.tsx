@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { updateAccountSettingsAction } from "@/actions/account";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,31 @@ import { Switch } from "@/components/ui/switch";
 import type { DashboardData } from "@/types/domain";
 
 export function SettingsPanels({ dashboardData }: { dashboardData: DashboardData }) {
-  const [textTones, setTextTones] = useState(true);
-  const [easierRecovery, setEasierRecovery] = useState(true);
+  const [pending, startTransition] = useTransition();
+  const [firstName, setFirstName] = useState(dashboardData.user.firstName);
+  const [weeklySwimDays, setWeeklySwimDays] = useState(String(dashboardData.swimmerProfile.weeklySwimDays || 1));
+  const [favoriteStrokes, setFavoriteStrokes] = useState(dashboardData.swimmerProfile.favoriteStrokes.join(", "));
+  const [textTones, setTextTones] = useState(dashboardData.swimmerProfile.prefersSimpleExplanations);
+  const [easierRecovery, setEasierRecovery] = useState(dashboardData.swimmerProfile.autoEasyOnSoreness);
+
+  const saveSettings = () => {
+    startTransition(async () => {
+      const result = await updateAccountSettingsAction({
+        firstName,
+        weeklySwimDays: Number(weeklySwimDays),
+        favoriteStrokes,
+        prefersSimpleExplanations: textTones,
+        autoEasyOnSoreness: easierRecovery,
+      });
+
+      if (!result.ok) {
+        toast.error(result.message ?? "Unable to save settings.");
+        return;
+      }
+
+      toast.success(result.message ?? "Settings saved.");
+    });
+  };
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -24,22 +48,24 @@ export function SettingsPanels({ dashboardData }: { dashboardData: DashboardData
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">First name</label>
-              <Input defaultValue={dashboardData.user.firstName} />
+              <Input value={firstName} onChange={(event) => setFirstName(event.target.value)} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Email</label>
-              <Input defaultValue={dashboardData.user.email} />
+              <Input defaultValue={dashboardData.user.email} disabled />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Weekly swim days</label>
-              <Input defaultValue={String(dashboardData.swimmerProfile.weeklySwimDays)} />
+              <Input value={weeklySwimDays} onChange={(event) => setWeeklySwimDays(event.target.value)} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">Favorite strokes</label>
-              <Input defaultValue={dashboardData.swimmerProfile.favoriteStrokes.join(", ")} />
+              <Input value={favoriteStrokes} onChange={(event) => setFavoriteStrokes(event.target.value)} />
             </div>
             <div className="sm:col-span-2">
-              <Button className="rounded-2xl bg-slate-950 text-white hover:bg-slate-800" onClick={() => toast.success("Profile settings saved.")}>Save settings</Button>
+              <Button className="rounded-lg bg-slate-950 text-white hover:bg-slate-800" onClick={saveSettings} disabled={pending}>
+                Save settings
+              </Button>
             </div>
           </CardContent>
         </Card>

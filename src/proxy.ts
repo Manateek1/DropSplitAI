@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const protectedPrefixes = ["/dashboard", "/chat", "/plan", "/log", "/settings", "/billing"];
+const protectedPrefixes = ["/dashboard", "/chat", "/plan", "/log", "/account", "/settings", "/billing"];
 const authPrefixes = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 export async function proxy(request: NextRequest) {
@@ -35,6 +35,7 @@ export const config = {
     "/chat/:path*",
     "/plan/:path*",
     "/log/:path*",
+    "/account/:path*",
     "/settings/:path*",
     "/billing/:path*",
     "/login",

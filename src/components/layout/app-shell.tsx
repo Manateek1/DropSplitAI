@@ -1,9 +1,12 @@
-import { Menu } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Menu, Settings } from "lucide-react";
 
+import { signOutAction } from "@/actions/auth";
 import { DemoBadge } from "@/components/common/demo-badge";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { initials } from "@/lib/utils";
 import type { AppUser } from "@/types/domain";
@@ -35,11 +38,33 @@ export function AppShell({ children, user, demoMode }: { children: React.ReactNo
             </div>
             <div className="flex items-center gap-3">
               {demoMode ? <DemoBadge /> : null}
-              <Avatar className="h-11 w-11 rounded-2xl border border-slate-200 bg-slate-100">
-                <AvatarFallback className="rounded-2xl bg-slate-100 text-sm font-semibold text-slate-700">
-                  {initials(user.fullName)}
-                </AvatarFallback>
-              </Avatar>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="ghost" className="h-11 w-11 rounded-lg p-0" />}>
+                  <Avatar className="h-11 w-11 rounded-lg border border-slate-200 bg-slate-100">
+                    <AvatarFallback className="rounded-lg bg-slate-100 text-sm font-semibold text-slate-700">
+                      {initials(user.fullName)}
+                    </AvatarFallback>
+                  </Avatar>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 border border-slate-200 bg-white">
+                  <DropdownMenuLabel>
+                    <span className="block text-sm font-medium text-slate-950">{user.fullName}</span>
+                    <span className="block truncate text-xs text-slate-500">{user.email}</span>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem render={<Link href="/account" />}>
+                    <Settings className="h-4 w-4" />
+                    Account
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <form action={signOutAction}>
+                    <DropdownMenuItem render={<button type="submit" className="w-full" />}>
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </DropdownMenuItem>
+                  </form>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
           <main className="flex-1">{children}</main>

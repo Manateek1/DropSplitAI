@@ -2,6 +2,8 @@ import { format, parseISO } from "date-fns";
 
 import type { CourseType, SwimEvent } from "@/types/domain";
 
+export const SWIM_TIME_PATTERN = /^(?:\d{1,2}:\d{2}(?:\.\d{1,2})?|\d{1,2}\.\d{1,2})$/;
+
 export const swimEventAliasMap: Array<{ event: SwimEvent; pattern: RegExp }> = [
   { event: "50 free", pattern: /\b50\s*(free|freestyle)\b/i },
   { event: "100 free", pattern: /\b100\s*(free|freestyle)\b/i },
@@ -28,12 +30,22 @@ export function detectSwimEvent(text: string): SwimEvent | null {
 }
 
 export function parseTimeString(raw: string): number {
-  if (raw.includes(":")) {
-    const [minutes, secondsPart] = raw.split(":");
+  const value = raw.trim();
+
+  if (!SWIM_TIME_PATTERN.test(value)) {
+    throw new Error("Enter times like 25.29 or 1:02.14.");
+  }
+
+  if (value.includes(":")) {
+    const [minutes, secondsPart] = value.split(":");
     return Number(minutes) * 60 + Number(secondsPart);
   }
 
-  return Number(raw);
+  return Number(value);
+}
+
+export function isValidSwimTime(raw: string) {
+  return SWIM_TIME_PATTERN.test(raw.trim()) && Number.isFinite(parseTimeString(raw));
 }
 
 export function formatSeconds(seconds: number): string {

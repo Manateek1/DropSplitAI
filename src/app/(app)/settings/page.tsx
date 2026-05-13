@@ -1,7 +1,5 @@
-import { SettingsPanels } from "@/components/settings/settings-panels";
-import { getDashboardData } from "@/lib/data";
+import { redirect } from "next/navigation";
 
-export default async function SettingsPage() {
-  const data = await getDashboardData();
-  return <SettingsPanels dashboardData={data} />;
+export default function SettingsRedirectPage() {
+  redirect("/account");
 }

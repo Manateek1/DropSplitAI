@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, CreditCard, LayoutDashboard, LogOut, NotebookTabs, Settings, Waves } from "lucide-react";
+import { BarChart3, Bot, LayoutDashboard, LogOut, NotebookTabs, Waves } from "lucide-react";
 
 import { signOutAction } from "@/actions/auth";
 import { LogoMark } from "@/components/common/logo-mark";
@@ -14,8 +14,6 @@ const nav = [
   { href: "/chat", label: "Coach chat", icon: Bot },
   { href: "/plan", label: "Weekly plan", icon: NotebookTabs },
   { href: "/log", label: "Swim log", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/billing", label: "Billing", icon: CreditCard },
 ];
 
 export function AppSidebar() {
@@ -36,7 +34,7 @@ export function AppSidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium transition",
+                  "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition",
                   active
                     ? "bg-slate-950 text-white shadow-[0_18px_38px_-24px_rgba(15,23,42,0.7)]"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",

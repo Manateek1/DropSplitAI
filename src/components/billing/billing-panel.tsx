@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { pricingTiers } from "@/lib/stripe";
 import type { DashboardData } from "@/types/domain";
 
-export function BillingPanel({ dashboardData }: { dashboardData: DashboardData }) {
+export function BillingPanel({ dashboardData, billingConfigured = true }: { dashboardData: DashboardData; billingConfigured?: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -50,7 +50,7 @@ export function BillingPanel({ dashboardData }: { dashboardData: DashboardData }
           </div>
           <div className="rounded-2xl bg-slate-50 p-4">
             <p className="text-sm text-slate-500">Status</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{dashboardData.subscription.status}</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-950">{billingConfigured ? dashboardData.subscription.status : "not configured"}</p>
           </div>
         </CardContent>
       </Card>
@@ -60,9 +60,13 @@ export function BillingPanel({ dashboardData }: { dashboardData: DashboardData }
           <PricingCard
             key={tier.id}
             {...tier}
-            disabled={pending || (tier.id === dashboardData.subscription.tier && tier.id === "free")}
+            disabled={!billingConfigured || pending || (tier.id === dashboardData.subscription.tier && tier.id === "free")}
             ctaLabel={tier.id === "pro" && dashboardData.subscription.tier === "pro" ? "Manage subscription" : tier.ctaLabel}
             onClick={() => {
+              if (!billingConfigured) {
+                toast.message("Billing is not configured yet.");
+                return;
+              }
               if (tier.id === "pro" && dashboardData.subscription.tier === "pro") {
                 runAction(createBillingPortalAction);
                 return;

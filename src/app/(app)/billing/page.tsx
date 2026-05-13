@@ -1,7 +1,5 @@
-import { BillingPanel } from "@/components/billing/billing-panel";
-import { getDashboardData } from "@/lib/data";
+import { redirect } from "next/navigation";
 
-export default async function BillingPage() {
-  const data = await getDashboardData();
-  return <BillingPanel dashboardData={data} />;
+export default function BillingRedirectPage() {
+  redirect("/account");
 }

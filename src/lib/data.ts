@@ -1,8 +1,10 @@
+import { FREE_TIER_MESSAGE_LIMIT } from "@/lib/constants";
 import { demoOnboardingDefaults, getDemoDashboardData } from "@/lib/mock-data";
-import { isDemoMode, isSupabaseConfigured } from "@/lib/env";
+import { getProductionConfigMessage, hasProductionConfigError, isDemoMode, isSupabaseConfigured } from "@/lib/env";
+import { logServerError } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { safeJsonParse } from "@/lib/utils";
-import type { DashboardData, OnboardingInput, UploadedFileRecord, WorkoutSection } from "@/types/domain";
+import type { AppUser, DashboardData, OnboardingInput, UploadedFileRecord, WorkoutSection } from "@/types/domain";
 
 function parseWorkoutSections(value: unknown): WorkoutSection[] {
   return safeJsonParse(typeof value === "string" ? value : JSON.stringify(value ?? []), []);
@@ -36,7 +38,7 @@ function applyRealtimeFields(data: DashboardData) {
       }
 
       if (stat.label === "Swim days") {
-        return { ...stat, helper: `Today's focus: ${todayWorkout.focus}` };
+        return { ...stat, helper: todayWorkout ? `Today's focus: ${todayWorkout.focus}` : "No workout scheduled yet" };
       }
 
       return stat;
@@ -44,9 +46,73 @@ function applyRealtimeFields(data: DashboardData) {
   };
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
-  if (!isSupabaseConfigured || isDemoMode) {
+function createEmptyDashboardData(user: AppUser): DashboardData {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    user,
+    swimmerProfile: {
+      skillLevel: "intermediate",
+      favoriteStrokes: [],
+      bestEvents: [],
+      weaknesses: [],
+      weeklySwimDays: 0,
+      goals: [],
+      targetEvents: [],
+      prefersSimpleExplanations: true,
+      autoEasyOnSoreness: true,
+      onboardingCompleted: false,
+    },
+    bestTimes: [],
+    weeklyPlan: {
+      id: "empty-plan",
+      weekOf: today,
+      totalPlannedYardage: 0,
+      targetSwimDays: 0,
+      strokeFocus: "No weekly plan yet",
+      coachSummary: "Complete onboarding to build the first weekly plan.",
+      days: [],
+    },
+    recentMessages: [],
+    swimLogs: [],
+    coachNotes: [],
+    dashboardStats: [
+      { label: "This week", value: "0 yds", helper: "No swims logged yet" },
+      { label: "Swim days", value: "0", helper: "No workout scheduled yet" },
+      { label: "Best recent time", value: "-", helper: "Log your first time" },
+      { label: "Consistency streak", value: "-", helper: "Starts after your first log" },
+    ],
+    progressSeries: [],
+    frequencySeries: [],
+    eventInsight: {
+      title: "Add times to unlock event insight",
+      description: "DropSplit AI needs at least one logged time before it can recommend event focus.",
+      primaryEvents: [],
+      secondaryEvents: [],
+    },
+    subscription: {
+      tier: "free",
+      status: "free",
+      messageLimit: FREE_TIER_MESSAGE_LIMIT,
+      messagesUsed: 0,
+      renewalDate: null,
+    },
+  };
+}
+
+function getDemoOrThrow(scope: string) {
+  if (isDemoMode) {
     return applyRealtimeFields(getDemoDashboardData());
+  }
+
+  const message = hasProductionConfigError ? getProductionConfigMessage() : "Supabase is not configured.";
+  logServerError(scope, new Error(message));
+  throw new Error(message);
+}
+
+export async function getDashboardData(): Promise<DashboardData> {
+  if (!isSupabaseConfigured) {
+    return getDemoOrThrow("getDashboardData");
   }
 
   try {
@@ -56,7 +122,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return applyRealtimeFields(getDemoDashboardData());
+      throw new Error("Authentication required.");
     }
 
     const [profileResult, swimmerResult, bestTimesResult, plansResult, logsResult, messagesResult, notesResult, subscriptionResult, usageResult] = await Promise.all([
@@ -82,7 +148,13 @@ export async function getDashboardData(): Promise<DashboardData> {
       supabase.from("usage_tracking").select("*").eq("user_id", user.id).eq("metric", "ai_messages").maybeSingle(),
     ]);
 
-    const fallback = getDemoDashboardData();
+    const fallback = createEmptyDashboardData({
+      id: user.id,
+      email: user.email ?? "",
+      firstName: user.email?.split("@")[0] ?? "Swimmer",
+      fullName: user.email?.split("@")[0] ?? "Swimmer",
+      avatarUrl: null,
+    });
     const profile = profileResult.data;
     const swimmer = swimmerResult.data;
     const plan = plansResult.data as Record<string, unknown> | null;
@@ -113,6 +185,9 @@ export async function getDashboardData(): Promise<DashboardData> {
         targetEvents: swimmer?.target_events ?? fallback.swimmerProfile.targetEvents,
         currentTrainingLevel: swimmer?.current_training_level ?? fallback.swimmerProfile.currentTrainingLevel,
         sorenessNotes: swimmer?.soreness_notes ?? fallback.swimmerProfile.sorenessNotes,
+        prefersSimpleExplanations:
+          swimmer?.prefers_simple_explanations ?? fallback.swimmerProfile.prefersSimpleExplanations,
+        autoEasyOnSoreness: swimmer?.auto_easy_on_soreness ?? fallback.swimmerProfile.autoEasyOnSoreness,
         onboardingCompleted: swimmer?.onboarding_completed ?? fallback.swimmerProfile.onboardingCompleted,
       },
       bestTimes:
@@ -134,7 +209,9 @@ export async function getDashboardData(): Promise<DashboardData> {
               targetSwimDays: Number(plan.target_swim_days ?? 0),
               strokeFocus: String(plan.stroke_focus ?? fallback.weeklyPlan.strokeFocus),
               coachSummary: String(plan.coach_summary ?? fallback.weeklyPlan.coachSummary),
-              days: ((plan.workout_days ?? []) as Array<Record<string, unknown>>).map((day) => ({
+              days: ((plan.workout_days ?? []) as Array<Record<string, unknown>>)
+                .sort((a, b) => Number(a.day_index ?? 0) - Number(b.day_index ?? 0))
+                .map((day) => ({
                 id: String(day.id),
                 date: String(day.day_date),
                 label: String(day.day_label),
@@ -216,8 +293,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     };
 
     return applyRealtimeFields(mapped);
-  } catch {
-    return applyRealtimeFields(getDemoDashboardData());
+  } catch (error) {
+    logServerError("getDashboardData", error);
+    throw error;
   }
 }
 
@@ -233,7 +311,10 @@ export async function getViewerState() {
 }
 
 export async function getOnboardingDefaults(): Promise<OnboardingInput> {
-  if (!isSupabaseConfigured || isDemoMode) {
+  if (!isSupabaseConfigured) {
+    if (!isDemoMode) {
+      throw new Error(hasProductionConfigError ? getProductionConfigMessage() : "Supabase is not configured.");
+    }
     return demoOnboardingDefaults;
   }
 
@@ -244,7 +325,7 @@ export async function getOnboardingDefaults(): Promise<OnboardingInput> {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return demoOnboardingDefaults;
+      throw new Error("Authentication required.");
     }
 
     const [profileResult, swimmerResult, bestTimesResult] = await Promise.all([
@@ -273,7 +354,8 @@ export async function getOnboardingDefaults(): Promise<OnboardingInput> {
       currentTrainingLevel: swimmerResult.data?.current_training_level ?? undefined,
       sorenessNotes: swimmerResult.data?.soreness_notes ?? undefined,
     };
-  } catch {
-    return demoOnboardingDefaults;
+  } catch (error) {
+    logServerError("getOnboardingDefaults", error);
+    throw error;
   }
 }

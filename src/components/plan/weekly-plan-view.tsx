@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { adjustWorkoutDayAction, updateWorkoutCompletionAction } from "@/actions/plan";
 import { WorkoutCard } from "@/components/plan/workout-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,12 +13,60 @@ import type { WeeklyPlan } from "@/types/domain";
 export function WeeklyPlanView({ plan }: { plan: WeeklyPlan }) {
   const [days, setDays] = useState(plan.days);
   const [selectedDayId, setSelectedDayId] = useState(plan.days[0]?.id);
+  const [pending, startTransition] = useTransition();
 
   const selectedDay = useMemo(() => days.find((day) => day.id === selectedDayId) ?? days[0], [days, selectedDayId]);
 
   const updateDay = (mutate: (day: WeeklyPlan["days"][number]) => WeeklyPlan["days"][number]) => {
+    if (!selectedDay) return;
     setDays((current) => current.map((day) => (day.id === selectedDay.id ? mutate(day) : day)));
   };
+
+  const adjustDay = (adjustment: "easier" | "harder" | "swap-focus") => {
+    if (!selectedDay) return;
+
+    startTransition(async () => {
+      const result = await adjustWorkoutDayAction(selectedDay, adjustment);
+      if (!result.ok || !result.day) {
+        toast.error(result.message ?? "Unable to adjust workout.");
+        return;
+      }
+
+      setDays((current) => current.map((day) => (day.id === result.day?.id ? result.day : day)));
+      toast.success(result.message ?? "Workout adjusted.");
+    });
+  };
+
+  const toggleCompleted = () => {
+    if (!selectedDay) return;
+    const nextCompleted = !selectedDay.completed;
+
+    startTransition(async () => {
+      const result = await updateWorkoutCompletionAction(selectedDay.id, nextCompleted);
+      if (!result.ok) {
+        toast.error(result.message ?? "Unable to update workout.");
+        return;
+      }
+
+      updateDay((day) => ({ ...day, completed: nextCompleted }));
+      toast.success(result.message ?? "Workout updated.");
+    });
+  };
+
+  if (!days.length || !selectedDay) {
+    return (
+      <Card className="border-slate-200 shadow-[0_20px_60px_-48px_rgba(15,23,42,0.24)]">
+        <CardContent className="p-6">
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-cyan-600">Weekly plan</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">No plan yet</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            Complete onboarding to generate the first week. Once a plan exists, workout adjustments and completion status
+            will persist here.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -50,12 +99,12 @@ export function WeeklyPlanView({ plan }: { plan: WeeklyPlan }) {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => toast.success("Weekly plan regenerated. In demo mode this keeps the same structure." )}>Regenerate workout</Button>
-        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => updateDay((day) => ({ ...day, intensity: "easy", coachNote: `Made easier: ${day.coachNote}` }))}>Make easier</Button>
-        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => updateDay((day) => ({ ...day, intensity: "hard", coachNote: `Made harder: ${day.coachNote}` }))}>Make harder</Button>
-        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => updateDay((day) => ({ ...day, focus: `Swap focus: ${plan.strokeFocus}` }))}>Swap focus</Button>
+        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => toast.message("Plan regeneration is queued for the next coaching release.")}>Regenerate workout</Button>
+        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => adjustDay("easier")} disabled={pending}>Make easier</Button>
+        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => adjustDay("harder")} disabled={pending}>Make harder</Button>
+        <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => adjustDay("swap-focus")} disabled={pending}>Swap focus</Button>
         <Button type="button" variant="outline" className="rounded-full border-slate-200" onClick={() => toast.message(selectedDay.coachNote)}>Explain workout</Button>
-        <Button type="button" className="rounded-full bg-slate-950 text-white hover:bg-slate-800" onClick={() => updateDay((day) => ({ ...day, completed: !day.completed }))}>{selectedDay.completed ? "Mark incomplete" : "Mark complete"}</Button>
+        <Button type="button" className="rounded-full bg-slate-950 text-white hover:bg-slate-800" onClick={toggleCompleted} disabled={pending}>{selectedDay.completed ? "Mark incomplete" : "Mark complete"}</Button>
       </div>
 
       <WorkoutCard day={selectedDay} />

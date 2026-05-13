@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { createManualTimeEntryAction } from "@/actions/log";
 import { ManualTimeEntryDialog } from "@/components/log/manual-time-entry-dialog";
 import { UploadDropzone } from "@/components/log/upload-dropzone";
 import { ProgressChartCard } from "@/components/dashboard/progress-chart-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { parseTimeString } from "@/lib/swim";
 import { formatRelativeTime } from "@/lib/utils";
 import type { DashboardData, SwimLog, UploadedFileRecord } from "@/types/domain";
 
@@ -24,7 +26,25 @@ export function SwimLogView({ dashboardData }: { dashboardData: DashboardData })
           <p className="mt-1 text-sm text-slate-500">Track time drops, consistency, and what the coach is noticing.</p>
         </div>
         <ManualTimeEntryDialog
-          onSubmit={(entry) => {
+          onSubmit={async (entry) => {
+            const result = await createManualTimeEntryAction(entry);
+            if (!result.ok) {
+              toast.error(result.message ?? "Unable to log swim.");
+              return;
+            }
+
+            const savedEntry = result.entry ?? {
+              id: `time-${Date.now()}`,
+              event: entry.event,
+              course: entry.course,
+              time: entry.time,
+              timeSeconds: parseTimeString(entry.time),
+              date: entry.date,
+              context: entry.context,
+              note: entry.note,
+              source: "manual" as const,
+            };
+
             setLogs((current) => [
               {
                 id: `manual-${Date.now()}`,
@@ -33,25 +53,11 @@ export function SwimLogView({ dashboardData }: { dashboardData: DashboardData })
                 durationMinutes: 0,
                 type: entry.context,
                 note: entry.note,
-                timeEntries: [
-                  {
-                    id: `time-${Date.now()}`,
-                    event: entry.event,
-                    course: entry.course,
-                    time: entry.time,
-                    timeSeconds: entry.time.includes(":")
-                      ? Number(entry.time.split(":")[0]) * 60 + Number(entry.time.split(":")[1])
-                      : Number(entry.time),
-                    date: entry.date,
-                    context: entry.context,
-                    note: entry.note,
-                    source: "manual",
-                  },
-                ],
+                timeEntries: [savedEntry],
               },
               ...current,
             ]);
-            toast.success(`${entry.event} logged.`);
+            toast.success(result.message ?? `${entry.event} logged.`);
           }}
         />
       </div>

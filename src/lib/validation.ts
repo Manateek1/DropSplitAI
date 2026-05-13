@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { COURSE_TYPES, SWIM_EVENTS } from "@/lib/constants";
+import { isValidSwimTime } from "@/lib/swim";
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -32,7 +33,7 @@ export const onboardingSchema = z.object({
     .array(
       z.object({
         event: z.enum(SWIM_EVENTS),
-        time: z.string().min(3),
+        time: z.string().min(3).refine(isValidSwimTime, "Enter a time like 25.29 or 1:02.14."),
         course: z.enum(COURSE_TYPES),
       }),
     )
@@ -49,10 +50,18 @@ export const onboardingSchema = z.object({
 export const manualTimeEntrySchema = z.object({
   event: z.enum(SWIM_EVENTS),
   course: z.enum(COURSE_TYPES),
-  time: z.string().min(3),
+  time: z.string().min(3).refine(isValidSwimTime, "Enter a time like 25.29 or 1:02.14."),
   date: z.string().min(4),
   context: z.enum(["practice", "meet", "time-trial"]),
   note: z.string().optional(),
+});
+
+export const accountSettingsSchema = z.object({
+  firstName: z.string().min(2, "Tell us what to call you."),
+  weeklySwimDays: z.coerce.number().min(1).max(7),
+  favoriteStrokes: z.string().min(2),
+  prefersSimpleExplanations: z.boolean(),
+  autoEasyOnSoreness: z.boolean(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
@@ -61,3 +70,4 @@ export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type OnboardingSchemaInput = z.infer<typeof onboardingSchema>;
 export type ManualTimeEntryInput = z.infer<typeof manualTimeEntrySchema>;
+export type AccountSettingsInput = z.infer<typeof accountSettingsSchema>;

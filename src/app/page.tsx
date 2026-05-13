@@ -252,7 +252,7 @@ export default function Home() {
           <div className="max-w-2xl">
             <p className="text-sm font-medium uppercase tracking-[0.22em] text-cyan-600">Ready to swim smarter?</p>
             <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">Build your first personalized week with DropSplit AI.</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-500">Get an MVP that already feels like a real startup product — polished, fast, and centered around coach chat.</p>
+            <p className="mt-3 text-sm leading-7 text-slate-500">Get a polished coaching workspace centered around plans, logging, and coach chat.</p>
           </div>
           <div className="mt-6 flex flex-wrap gap-3 lg:mt-0">
             <Link
@@ -265,7 +265,7 @@ export default function Home() {
               href="/dashboard"
               className={cn(buttonVariants({ variant: "outline", className: "rounded-full border-slate-200 px-6 text-slate-700" }))}
             >
-              See app shell
+              Open app
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
